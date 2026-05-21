@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -21,11 +22,23 @@ type model struct {
 	Textarea               textarea.Model
 	Message                string
 	MessageType            string // success | error
+	List                   list.Model
+	IsListVisible          bool
 }
+
+type Items struct {
+	title, des string
+}
+
+func (i Items) Title() string       { return i.title }
+func (i Items) Description() string { return i.des }
+func (i Items) FilterValue() string { return i.title }
 
 var (
 	vaultDir string
 )
+
+var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 func init() {
 	homeDir, err := os.UserHomeDir()
@@ -54,6 +67,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
+	case tea.WindowSizeMsg:
+		h, v := docStyle.GetFrameSize()
+		m.List.SetSize(msg.Width-h, msg.Height-v)
+
 	case clearMessageMsg:
 		m.Message = ""
 		m.MessageType = ""
@@ -71,9 +88,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+n":
 			m.CreateFileInputVisible = true
+			m.IsListVisible = false
+			m.NewInput.Focus()
+			return m, nil
+
+		case "ctrl+l":
+			m.IsListVisible = true
+			m.CreateFileInputVisible = false
+
+			m.List.SetItems(ListFile())
+
+			// refresh list size if needed
+			m.List.SetSize(50, 20)
+
+			return m, nil
+
+		case "esc":
+			m.IsListVisible = false
+			m.CreateFileInputVisible = false
+
+			if m.CurrentFile != nil {
+				m.CurrentFile.Close()
+				m.CurrentFile = nil
+			}
+
 			return m, nil
 
 		case "ctrl+s":
+
 			if m.CurrentFile == nil {
 				break
 			}
@@ -100,29 +142,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return showMessage(m, "✓ File saved successfully!", "success")
 
 		case "enter":
+
+			if !m.CreateFileInputVisible {
+				break
+			}
+
 			fileName := m.NewInput.Value()
 
 			if fileName != "" {
+
 				filePath := fmt.Sprintf("%s/%s.md", vaultDir, fileName)
 
-				// File already exists
+				// check existing file
 				if _, err := os.Stat(filePath); err == nil {
 					return showMessage(m, "✗ File already exists!", "error")
 				}
 
 				file, err := os.Create(filePath)
+
 				if err != nil {
 					return showMessage(m, "✗ Failed to create file!", "error")
 				}
 
 				m.CurrentFile = file
 				m.CreateFileInputVisible = false
+
 				m.NewInput.SetValue("")
 
 				return showMessage(m, "✓ File created successfully!", "success")
 			}
 		}
 	}
+
+	// Update active component only
 
 	if m.CreateFileInputVisible {
 		m.NewInput, cmd = m.NewInput.Update(msg)
@@ -132,6 +184,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Textarea, cmd = m.Textarea.Update(msg)
 	}
 
+	if m.IsListVisible {
+		m.List, cmd = m.List.Update(msg)
+	}
+
 	return m, cmd
 }
 
@@ -139,23 +195,54 @@ func InitializeModel() model {
 	if err := os.MkdirAll(vaultDir, 0750); err != nil {
 		log.Fatal(err)
 	}
-
+	// TextInput
 	ti := textinput.New()
 	ti.Placeholder = "Enter your note title ..."
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.SetWidth(40)
 
+	// TextArea
 	ta := textarea.New()
 	ta.Placeholder = "Write your file content ..."
 	ta.Focus()
 	ta.SetWidth(100)
 	ta.ShowLineNumbers = false
 
+	// List style
+	delegate := list.NewDefaultDelegate()
+
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+		Foreground(lipgloss.Color("226")).
+		Bold(true)
+
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
+		Foreground(lipgloss.Color("64"))
+
+	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.
+		Foreground(lipgloss.Color("15"))
+
+	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.
+		Foreground(lipgloss.Color("241"))
+
+	noteList := ListFile()
+
+	l := list.New(noteList, delegate, 50, 20)
+
+	l.Title = "Termnotes"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("226")). // yellow text
+	Background(lipgloss.Color("15")).  // blue background
+	Bold(true).
+	Padding(0, 1)
+
 	return model{
 		NewInput:               ti,
 		CreateFileInputVisible: false,
 		Textarea:               ta,
+		List:                   l,
 	}
 }
 
@@ -199,6 +286,10 @@ func (m model) View() tea.View {
 		view = m.Textarea.View()
 	}
 
+	if m.IsListVisible {
+		view = m.List.View()
+	}
+
 	return tea.NewView(
 		fmt.Sprintf(
 			"\n%s\n\n%s\n\n%s\n\n%s\n",
@@ -216,4 +307,31 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func ListFile() []list.Item {
+	items := make([]list.Item, 0)
+	entries, err := os.ReadDir(vaultDir)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			info, err := entry.Info()
+
+			if err != nil {
+				continue
+			}
+			modTime := info.ModTime().Format("2006-01-02 15:04")
+
+			items = append(items, Items{
+				title: entry.Name(),
+				des:   fmt.Sprintf("MODIFIED: %s", modTime),
+			})
+		}
+	}
+
+	return items
 }
