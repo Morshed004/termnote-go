@@ -142,6 +142,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return showMessage(m, "✓ File saved successfully!", "success")
 
+		case "ctrl+d":
+			if m.IsListVisible {
+
+				item, ok := m.List.SelectedItem().(Items)
+
+				if !ok {
+					return showMessage(m, "✗ Invalid selection", "error")
+				}
+
+				filePath := fmt.Sprintf("%s/%s", vaultDir, item.title)
+
+				// Close current file if it's the same file
+				if m.CurrentFile != nil && m.CurrentFile.Name() == filePath {
+					m.CurrentFile.Close()
+					m.CurrentFile = nil
+					m.Textarea.SetValue("")
+				}
+
+				// Delete file
+				if err := os.Remove(filePath); err != nil {
+					return showMessage(m, "✗ Failed to delete file", "error")
+				}
+
+				// Refresh list
+				m.List.SetItems(ListFile())
+
+				return showMessage(m, "✓ File deleted successfully!", "success")
+			}
+
+			return m, nil
+
 		case "enter":
 			if m.IsListVisible {
 				item, ok := m.List.SelectedItem().(Items)
@@ -300,7 +331,7 @@ func (m model) View() tea.View {
 		Bold(true).
 		Foreground(messageColor)
 
-	help := "Ctrl + C: Quit | Ctrl + N: New File | Ctrl + L: List | Ctrl + S: Save | Esc: Back"
+	help := "Ctrl + C: Quit | Ctrl + N: New File | Ctrl + L: List | Ctrl + S: Save | Ctrl + D: Delete | Esc: Back"
 
 	openMessage := "Welcome to Termnote: "
 
