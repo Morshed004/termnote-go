@@ -272,11 +272,11 @@ func InitializeModel() model {
 	delegate := list.NewDefaultDelegate()
 
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(lipgloss.Color("226")).
+		Foreground(lipgloss.Color("#BD93F9")).
 		Bold(true)
 
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("64"))
+		Foreground(lipgloss.Color("#6272A4"))
 
 	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.
 		Foreground(lipgloss.Color("15"))
@@ -292,8 +292,7 @@ func InitializeModel() model {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("226")). // yellow text
-		Background(lipgloss.Color("15")).  // blue background
+		Foreground(lipgloss.Color("#FFB86C")). // yellow text
 		Bold(true).
 		Padding(0, 1)
 
@@ -313,7 +312,7 @@ func (m model) View() tea.View {
 	var style = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("16")).
-		Background(lipgloss.Color("226")).
+		Background(lipgloss.Color("#BD93F9")).
 		PaddingLeft(4).
 		PaddingRight(4)
 
@@ -322,9 +321,9 @@ func (m model) View() tea.View {
 
 	switch m.MessageType {
 	case "success":
-		messageColor = lipgloss.Color("42") // green
+		messageColor = lipgloss.Color("#50FA7B") // green
 	case "error":
-		messageColor = lipgloss.Color("196") // red
+		messageColor = lipgloss.Color("#FF5555") // red
 	}
 
 	messageStyle := lipgloss.NewStyle().
