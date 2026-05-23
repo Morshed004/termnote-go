@@ -69,7 +69,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		m.List.SetSize(msg.Width-h, msg.Height-v)
+		m.List.SetSize(msg.Width-h, msg.Height-v-6)
 
 	case clearMessageMsg:
 		m.Message = ""
@@ -108,6 +108,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.CreateFileInputVisible = false
 
 			if m.CurrentFile != nil {
+				m.Textarea.SetValue("")
 				m.CurrentFile.Close()
 				m.CurrentFile = nil
 			}
@@ -142,6 +143,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return showMessage(m, "✓ File saved successfully!", "success")
 
 		case "enter":
+			if m.IsListVisible {
+				item, ok := m.List.SelectedItem().(Items)
+				if ok {
+					filePath := fmt.Sprintf("%s/%s", vaultDir, item.title)
+
+					content, err := os.ReadFile(filePath)
+
+					if err != nil {
+						log.Printf("Error reading file: %v", err)
+						return m, nil
+					}
+
+					m.Textarea.SetValue(string(content))
+
+					file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+
+					if err != nil {
+						log.Printf("Error opening file: %v", err)
+						return m, nil
+					}
+
+					m.CurrentFile = file
+					m.IsListVisible = false
+				}
+
+				return m, nil
+			}
 
 			if !m.CreateFileInputVisible {
 				break
@@ -229,14 +257,14 @@ func InitializeModel() model {
 
 	l := list.New(noteList, delegate, 50, 20)
 
-	l.Title = "Termnotes"
+	l.Title = "All Termnotes"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("226")). // yellow text
-	Background(lipgloss.Color("15")).  // blue background
-	Bold(true).
-	Padding(0, 1)
+		Foreground(lipgloss.Color("226")). // yellow text
+		Background(lipgloss.Color("15")).  // blue background
+		Bold(true).
+		Padding(0, 1)
 
 	return model{
 		NewInput:               ti,
@@ -272,7 +300,7 @@ func (m model) View() tea.View {
 		Bold(true).
 		Foreground(messageColor)
 
-	help := "Ctrl + C: Quit\nCtrl + N: New File\nCtrl + L: List\nCtrl + S: Save\nEsc: Back/Save\n"
+	help := "Ctrl + C: Quit | Ctrl + N: New File | Ctrl + L: List | Ctrl + S: Save | Esc: Back"
 
 	openMessage := "Welcome to Termnote: "
 
