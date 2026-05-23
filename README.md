@@ -48,7 +48,7 @@ Welcome to Termnote
 ### Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/termnote.git
+git clone https://github.com/Morshed004/termnote-go.git
 cd termnote
 ```
 
